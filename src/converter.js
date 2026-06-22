@@ -1,5 +1,4 @@
 import JSZip from 'jszip'
-import { initMobiFile } from '@lingo-reader/mobi-parser'
 import { focusFontCss, getFont } from './fonts.js'
 
 const HTML_EXTENSIONS = /\.(x?html?|xht)$/i
@@ -91,7 +90,7 @@ export function applyFocusReading(markup, fontId = 'bookerly', forceHtml = false
 }
 
 function cleanFilename(filename) {
-  return filename.replace(/\.(epub|mobi)$/i, '').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').trim() || 'book'
+  return filename.replace(/\.epub$/i, '').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').trim() || 'book'
 }
 
 function outputName(inputName, extension) {
@@ -137,140 +136,6 @@ async function processEpub(file, fontId, onProgress) {
     ({ percent }) => onProgress(72 + Math.round(percent * 0.26), 'Packing your new EPUB…'),
   )
   return { blob, words, chapters: contentFiles.length }
-}
-
-function chapterDocument(content, title, fontId) {
-  const source = /<html[\s>]/i.test(content)
-    ? content
-    : `<!doctype html><html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="utf-8"/><title>${escapeXml(title)}</title><link rel="stylesheet" href="style.css"/></head><body>${content}</body></html>`
-  return applyFocusReading(source, fontId)
-}
-
-function sanitizeMobiMarkup(markup) {
-  return markup
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<(?:video|audio)\b[^>]*>[\s\S]*?<\/(?:video|audio)>/gi, '')
-    .replace(/<img\b[^>]*>/gi, (tag) => {
-      const alt = tag.match(/\balt=["']([^"']*)["']/i)?.[1]?.trim()
-      return alt ? `<span class="focus-image-note">[Image: ${escapeXml(alt)}]</span>` : ''
-    })
-    .replace(/\s(?:recindex|mediarecindex|filepos)=["']?[^\s>"']+["']?/gi, '')
-}
-
-function namedBytes(bytes, name) {
-  Object.defineProperty(bytes, 'name', { value: name || 'book.mobi', configurable: true })
-  return bytes
-}
-
-async function prepareMobiInput(file) {
-  const bytes = file instanceof Uint8Array
-    ? new Uint8Array(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength))
-    : new Uint8Array(await file.arrayBuffer())
-  const name = file.name || 'book.mobi'
-  if (bytes.length < 256) throw new Error('This MOBI file is too small to contain a readable book.')
-
-  const sourceView = new DataView(bytes.buffer)
-  const recordCount = sourceView.getUint16(76, false)
-  if (!recordCount) throw new Error('This MOBI file has no readable content records.')
-  const record0Offset = sourceView.getUint32(78, false)
-  const record0End = recordCount > 1 ? sourceView.getUint32(86, false) : bytes.length
-  if (record0Offset + 132 > record0End || record0End > bytes.length) {
-    throw new Error('The MOBI record table is damaged or incomplete.')
-  }
-
-  const magic = new TextDecoder('ascii').decode(bytes.slice(record0Offset + 16, record0Offset + 20))
-  if (magic !== 'MOBI') throw new Error('This file does not contain a supported MOBI book header.')
-  const exthFlags = sourceView.getUint32(record0Offset + 128, false)
-  if (exthFlags & 0x40) return { input: namedBytes(bytes, name), repaired: false }
-
-  const mobiHeaderLength = sourceView.getUint32(record0Offset + 20, false)
-  const insertOffset = record0Offset + 16 + mobiHeaderLength
-  if (insertOffset > record0End) throw new Error('The MOBI metadata header is incomplete.')
-
-  const exth = new Uint8Array(12)
-  const exthView = new DataView(exth.buffer)
-  writeAscii(exth, 0, 'EXTH')
-  writeUint32(exthView, 4, exth.length)
-  writeUint32(exthView, 8, 0)
-
-  const repaired = new Uint8Array(bytes.length + exth.length)
-  repaired.set(bytes.slice(0, insertOffset), 0)
-  repaired.set(exth, insertOffset)
-  repaired.set(bytes.slice(insertOffset), insertOffset + exth.length)
-  const repairedView = new DataView(repaired.buffer)
-
-  for (let index = 0; index < recordCount; index += 1) {
-    const tableOffset = 78 + index * 8
-    const oldOffset = sourceView.getUint32(tableOffset, false)
-    writeUint32(repairedView, tableOffset, oldOffset >= insertOffset ? oldOffset + exth.length : oldOffset)
-  }
-
-  const titleOffsetPosition = record0Offset + 84
-  const titleOffset = sourceView.getUint32(titleOffsetPosition, false)
-  if (titleOffset >= 16 + mobiHeaderLength && titleOffset < 0xffffffff) {
-    writeUint32(repairedView, titleOffsetPosition, titleOffset + exth.length)
-  }
-  writeUint32(repairedView, record0Offset + 128, exthFlags | 0x40)
-  return { input: namedBytes(repaired, name), repaired: true }
-}
-
-async function unpackMobi(file, fontId, onProgress) {
-  onProgress(7, 'Reading the MOBI structure…')
-  const prepared = await prepareMobiInput(file)
-  if (prepared.repaired) onProgress(10, 'Repairing legacy MOBI metadata…')
-  const mobi = await initMobiFile(prepared.input)
-  try {
-    const spine = mobi.getSpine()
-    if (!spine?.length) throw new Error('No readable chapters were found in this MOBI file.')
-    const metadata = mobi.getMetadata() || {}
-    const chapters = []
-    let words = 0
-    for (let index = 0; index < spine.length; index += 1) {
-      onProgress(15 + Math.round((index / spine.length) * 52), `Adding reading cues to chapter ${index + 1} of ${spine.length}…`)
-      const item = spine[index]
-      const source = sanitizeMobiMarkup(item.text || '')
-      const result = chapterDocument(source, `Chapter ${index + 1}`, fontId)
-      chapters.push(result.markup)
-      words += result.wordCount
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    }
-    return { chapters, metadata, words }
-  } finally {
-    mobi.destroy()
-  }
-}
-
-async function chaptersToEpub(book, fontId, onProgress) {
-  const font = getFont(fontId)
-  const zip = new JSZip()
-  zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
-  zip.folder('META-INF').file('container.xml', `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`)
-  const oebps = zip.folder('OEBPS')
-  oebps.file('style.css', `strong[data-focus="true"]{font-weight:800} body{${focusFontCss(font)}line-height:1.55} img{max-width:100%;height:auto}`)
-
-  const manifest = []
-  const spine = []
-  const nav = []
-  book.chapters.forEach((chapter, index) => {
-    const id = `chapter-${index + 1}`
-    const href = `${id}.xhtml`
-    oebps.file(href, chapter)
-    manifest.push(`<item id="${id}" href="${href}" media-type="application/xhtml+xml"/>`)
-    spine.push(`<itemref idref="${id}"/>`)
-    nav.push(`<li><a href="${href}">Chapter ${index + 1}</a></li>`)
-  })
-  oebps.file('nav.xhtml', `<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head><body><nav epub:type="toc"><h1>Contents</h1><ol>${nav.join('')}</ol></nav></body></html>`)
-  manifest.unshift('<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>', '<item id="css" href="style.css" media-type="text/css"/>')
-
-  const meta = book.metadata
-  const identifier = escapeXml(meta.identifier || crypto.randomUUID())
-  oebps.file('content.opf', `<?xml version="1.0" encoding="utf-8"?><package version="3.0" unique-identifier="book-id" xmlns="http://www.idpf.org/2007/opf"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">${identifier}</dc:identifier><dc:title>${escapeXml(meta.title || 'Focus edition')}</dc:title><dc:creator>${escapeXml(meta.author?.join(', ') || '')}</dc:creator><dc:language>${escapeXml(meta.language || 'en')}</dc:language><meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')}</meta></metadata><manifest>${manifest.join('')}</manifest><spine>${spine.join('')}</spine></package>`)
-
-  onProgress(74, 'Building the EPUB package…')
-  return zip.generateAsync(
-    { type: 'blob', mimeType: 'application/epub+zip', compression: 'DEFLATE', compressionOptions: { level: 6 } },
-    ({ percent }) => onProgress(74 + Math.round(percent * 0.24), 'Building the EPUB package…'),
-  )
 }
 
 function writeUint16(view, offset, value) { view.setUint16(offset, value, false) }
@@ -359,41 +224,35 @@ export function createMobi(chapters, metadata = {}, fontId = 'bookerly') {
 }
 
 export async function convertBook(file, requestedFormat, fontId, onProgress) {
-  const inputFormat = file.name.toLowerCase().endsWith('.mobi') ? 'mobi' : 'epub'
-  const outputFormat = requestedFormat === 'keep' ? inputFormat : requestedFormat
+  if (!file?.name?.toLowerCase().endsWith('.epub')) {
+    throw new Error('Only EPUB input is supported. Choose an .epub file.')
+  }
+  const outputFormat = requestedFormat === 'mobi' ? 'mobi' : 'epub'
   let blob
   let words
   let chapters
 
-  if (inputFormat === 'epub' && outputFormat === 'epub') {
+  if (outputFormat === 'epub') {
     const result = await processEpub(file, fontId, onProgress)
     ;({ blob, words, chapters } = result)
   } else {
-    let book
-    if (inputFormat === 'mobi') {
-      book = await unpackMobi(file, fontId, onProgress)
-    } else {
-      onProgress(6, 'Reading the EPUB structure…')
-      const zip = await JSZip.loadAsync(file)
-      const entries = Object.values(zip.files).filter((entry) => !entry.dir && HTML_EXTENSIONS.test(entry.name))
-      const transformed = []
-      words = 0
-      for (let index = 0; index < entries.length; index += 1) {
-        onProgress(15 + Math.round((index / entries.length) * 52), `Adding reading cues to chapter ${index + 1} of ${entries.length}…`)
-        const result = applyFocusReading(await entries[index].async('string'), fontId)
-        transformed.push(result.markup)
-        words += result.wordCount
-      }
-      book = { chapters: transformed, metadata: { title: cleanFilename(file.name) }, words }
+    onProgress(6, 'Reading the EPUB structure…')
+    const zip = await JSZip.loadAsync(file)
+    const entries = Object.values(zip.files).filter((entry) => !entry.dir && HTML_EXTENSIONS.test(entry.name))
+    if (!entries.length) throw new Error('No readable HTML chapters were found. The book may be DRM-protected or damaged.')
+    const transformed = []
+    words = 0
+    for (let index = 0; index < entries.length; index += 1) {
+      onProgress(15 + Math.round((index / entries.length) * 52), `Adding reading cues to chapter ${index + 1} of ${entries.length}…`)
+      const result = applyFocusReading(await entries[index].async('string'), fontId)
+      transformed.push(result.markup)
+      words += result.wordCount
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
-    words = book.words
-    chapters = book.chapters.length
-    if (outputFormat === 'epub') blob = await chaptersToEpub(book, fontId, onProgress)
-    else {
-      onProgress(78, 'Building a compatible MOBI edition…')
-      blob = createMobi(book.chapters, book.metadata, fontId)
-      onProgress(98, 'Finishing your MOBI edition…')
-    }
+    chapters = transformed.length
+    onProgress(78, 'Building a compatible MOBI edition…')
+    blob = createMobi(transformed, { title: cleanFilename(file.name) }, fontId)
+    onProgress(98, 'Finishing your MOBI edition…')
   }
 
   onProgress(100, 'Your focus edition is ready.')

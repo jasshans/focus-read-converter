@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
+import JSZip from 'jszip'
 import { applyFocusReading, convertBook, createMobi } from './converter.js'
 
 function readBlob(blob) {
@@ -11,25 +12,13 @@ function readBlob(blob) {
   })
 }
 
-function removeExth(bytes) {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  const recordCount = view.getUint16(76, false)
-  const record0Offset = view.getUint32(78, false)
-  const mobiHeaderLength = view.getUint32(record0Offset + 20, false)
-  const exthOffset = record0Offset + 16 + mobiHeaderLength
-  const exthLength = view.getUint32(exthOffset + 4, false)
-  const legacy = new Uint8Array(bytes.length - exthLength)
-  legacy.set(bytes.slice(0, exthOffset), 0)
-  legacy.set(bytes.slice(exthOffset + exthLength), exthOffset)
-  const legacyView = new DataView(legacy.buffer)
-  for (let index = 0; index < recordCount; index += 1) {
-    const tableOffset = 78 + index * 8
-    const oldOffset = view.getUint32(tableOffset, false)
-    legacyView.setUint32(tableOffset, oldOffset > exthOffset ? oldOffset - exthLength : oldOffset, false)
-  }
-  legacyView.setUint32(record0Offset + 84, view.getUint32(record0Offset + 84, false) - exthLength, false)
-  legacyView.setUint32(record0Offset + 128, view.getUint32(record0Offset + 128, false) & ~0x40, false)
-  return legacy
+async function makeEpub(name = 'source.epub') {
+  const zip = new JSZip()
+  zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
+  zip.file('chapter.xhtml', '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Test</title></head><body><p>Hello focused world.</p></body></html>')
+  const bytes = await zip.generateAsync({ type: 'uint8array' })
+  bytes.name = name
+  return bytes
 }
 
 describe('applyFocusReading', () => {
@@ -77,28 +66,31 @@ describe('createMobi', () => {
     expect(bytes.length).toBeGreaterThan(300)
   })
 
-  it('converts MOBI to a new focused MOBI with the chosen font', async () => {
-    const source = createMobi(['<html><body><p>Hello focused world.</p></body></html>'], { title: 'Source book' })
-    const input = await readBlob(source)
-    input.name = 'source.mobi'
-    const result = await convertBook(input, 'keep', 'georgia', () => {})
+  it('converts EPUB to a focused MOBI with the chosen font', async () => {
+    const input = await makeEpub()
+    const result = await convertBook(input, 'mobi', 'georgia', () => {})
     const output = new TextDecoder().decode(await readBlob(result.blob))
     expect(result.format).toBe('mobi')
     expect(result.words).toBe(3)
+    expect(result.name).toBe('source-focus.mobi')
     expect(output).toContain('data-focus="true"')
     expect(output).toContain('font face="Georgia"')
   })
 
-  it('repairs a legacy MOBI that has no EXTH metadata block', async () => {
-    const source = createMobi(['<html><body><p>Legacy summer reading.</p></body></html>'], { title: 'Legacy book' })
-    const input = removeExth(await readBlob(source))
-    input.name = 'legacy-no-exth.mobi'
-    const result = await convertBook(input, 'keep', 'bookerly', () => {})
-    const output = await readBlob(result.blob)
-    const outputView = new DataView(output.buffer)
-    const record0Offset = outputView.getUint32(78, false)
+  it('converts EPUB to a focused EPUB while preserving the package', async () => {
+    const result = await convertBook(await makeEpub(), 'epub', 'bookerly', () => {})
+    const outputZip = await JSZip.loadAsync(await readBlob(result.blob))
+    const chapter = await outputZip.file('chapter.xhtml').async('string')
+    expect(result.format).toBe('epub')
+    expect(result.name).toBe('source-focus.epub')
     expect(result.words).toBe(3)
-    expect(outputView.getUint32(record0Offset + 128, false) & 0x40).toBe(0x40)
-    expect(new TextDecoder().decode(output)).toContain('data-focus="true"')
+    expect(chapter).toContain('data-focus="true"')
+    expect(await outputZip.file('mimetype').async('string')).toBe('application/epub+zip')
+  })
+
+  it('rejects MOBI input with a clear message', async () => {
+    const input = new Uint8Array([1, 2, 3])
+    input.name = 'source.mobi'
+    await expect(convertBook(input, 'mobi', 'bookerly', () => {})).rejects.toThrow('Only EPUB input is supported')
   })
 })

@@ -107,8 +107,8 @@ function setFile(file) {
     return
   }
   const extension = file.name.split('.').pop()?.toLowerCase()
-  if (!['epub', 'mobi'].includes(extension)) {
-    showError('Please choose an .epub or .mobi file.')
+  if (extension !== 'epub') {
+    showError('Please choose an .epub file. MOBI input is not supported.')
     return
   }
   if (file.size > 200 * 1024 * 1024) {
@@ -116,7 +116,7 @@ function setFile(file) {
     return
   }
   currentFile = file
-  $('.file-icon').textContent = extension.toUpperCase().slice(0, 2)
+  $('.file-icon').textContent = 'EP'
   $('#file-name').textContent = file.name
   $('#file-meta').textContent = `${extension.toUpperCase()} · ${formatBytes(file.size)}`
   selectedFile.hidden = false

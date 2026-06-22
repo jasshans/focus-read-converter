@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f4f0e8" />
-    <meta name="description" content="Convert EPUB and MOBI ebooks into focus-reading editions, privately in your browser." />
+    <meta name="description" content="Convert an EPUB into an EPUB or MOBI focus-reading edition, privately in your browser." />
     <title>Focus Read Converter</title>
   </head>
   <body>
@@ -12,7 +12,6 @@
       <header class="topbar">
         <a class="brand" href="./" aria-label="Focus Read Converter home">
           <span class="brand-mark" aria-hidden="true"><b>Fo</b></span>
-          <span>Focus Read Converter</span>
         </a>
         <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode">
           <svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
@@ -23,24 +22,24 @@
       <section class="hero" aria-labelledby="page-title">
         <p class="eyebrow">Read with momentum</p>
         <h1 id="page-title"><span class="focus-word"><b>Fo</b>cus</span> Read Converter</h1>
-        <p class="lede">Give your ebook a visual reading rhythm. The first part of each word is emphasized—entirely on your device.</p>
+        <p class="lede">Convert an EPUB to EPUB focus mode or MOBI focus mode. The first part of each word is emphasized—entirely on your device.</p>
       </section>
 
       <section class="converter-card" aria-labelledby="converter-title">
         <div class="card-heading">
           <div>
             <p class="step-label">01 · Choose your book</p>
-            <h2 id="converter-title">Drop in an ebook</h2>
+            <h2 id="converter-title">Drop in an EPUB</h2>
           </div>
           <span class="privacy-pill"><span class="privacy-dot"></span>Private &amp; local</span>
         </div>
 
         <button class="drop-zone" id="drop-zone" type="button" aria-describedby="drop-hint">
-          <input id="file-input" type="file" accept=".epub,.mobi,application/epub+zip,application/x-mobipocket-ebook" hidden />
+          <input id="file-input" type="file" accept=".epub,application/epub+zip" hidden />
           <span class="upload-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
           </span>
-          <strong>Drag &amp; drop your EPUB or MOBI</strong>
+          <strong>Drag &amp; drop your EPUB</strong>
           <span id="drop-hint">or <span class="browse-copy">browse your files</span> · up to 200 MB</span>
         </button>
 
@@ -55,9 +54,8 @@
             <span>Output format</span>
             <span class="select-wrap">
               <select id="output-format">
-                <option value="keep">Keep original format</option>
-                <option value="epub">Convert to EPUB</option>
-                <option value="mobi">Convert to MOBI</option>
+                <option value="epub">EPUB → EPUB focus mode</option>
+                <option value="mobi">EPUB → MOBI focus mode</option>
               </select>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg>
             </span>
@@ -72,7 +70,7 @@
               <div class="font-menu" id="font-menu" role="listbox" aria-labelledby="font-label" hidden></div>
             </div>
           </div>
-          <div class="format-note" id="format-note">EPUB keeps the original package. MOBI output is text-focused. Kindle faces use fonts already installed on the reader; no proprietary font files are embedded.</div>
+          <div class="format-note" id="format-note">EPUB input only. EPUB output preserves the original package; MOBI output creates a text-focused Kindle edition. Kindle faces use fonts already installed on the reader.</div>
         </div>
 
         <button class="convert-button" id="convert-button" type="button" disabled>
@@ -103,10 +101,20 @@
           <p class="step-label">A gentler reading cue</p>
           <h2 id="how-title"><span class="focus-word"><b>Ho</b>w</span> it works</h2>
         </div>
+        <div class="comparison-grid" aria-label="Original and focus mode text comparison">
+          <article class="comparison-card comparison-original">
+            <span class="comparison-label">Original text</span>
+            <p>Reading can feel calm, clear, and effortless. Follow the sentence at your own natural pace.</p>
+          </article>
+          <article class="comparison-card comparison-focus">
+            <span class="comparison-label">Focus mode</span>
+            <p><strong>Read</strong>ing <strong>ca</strong>n <strong>fe</strong>el <strong>ca</strong>lm, <strong>cle</strong>ar, <strong>an</strong>d <strong>effor</strong>tless. <strong>Fol</strong>low <strong>th</strong>e <strong>sent</strong>ence <strong>a</strong>t <strong>yo</strong>ur <strong>natu</strong>ral <strong>pa</strong>ce.</p>
+          </article>
+        </div>
         <div class="feature-grid">
-          <article><span>01</span><h3>Choose</h3><p>Drop an EPUB or MOBI file from your device.</p></article>
+          <article><span>01</span><h3>Choose</h3><p>Drop an EPUB file from your device.</p></article>
           <article><span>02</span><h3>Transform</h3><p>We emphasize the opening half of every word.</p></article>
-          <article><span>03</span><h3>Download</h3><p>Save a new edition. Your original is untouched.</p></article>
+          <article><span>03</span><h3>Download</h3><p>Save a focused EPUB or MOBI. Your original stays untouched.</p></article>
         </div>
       </section>
 
