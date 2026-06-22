@@ -1,87 +1,40 @@
-# Libre BioRead
+# Bionic read converter
 
-A Python command-line interface (CLI) script that applies the Bionic Reading effect to .epub, .mobi, and .azw3 ebook files. The script processes the text within the ebook, bolding parts of words to enhance reading speed and comprehension.
+A private, browser-based ebook converter for GitHub Pages. Drop in an EPUB or MOBI book and download a new edition with the opening half of each word emphasized.
 
 ## Features
 
-- Supports .epub, .mobi, and .azw3 ebook formats.
-- Preserves the original ebook formatting and structure.
-- Utilizes Calibre's command-line tools for robust ebook conversion.
-- Applies the Bionic Reading effect by bolding portions of words.
+- Drag-and-drop or native file browser
+- EPUB and MOBI input
+- Keep original format, convert to EPUB, or convert to MOBI
+- Live chapter-by-chapter progress
+- Fully local processing: books are never uploaded
+- Responsive light and dark themes
 
-## Requirements
+EPUB-to-EPUB conversion preserves the original package, styles, images, metadata, and navigation while changing readable text nodes. Conversions involving MOBI use a compatibility-oriented, text-focused path and may simplify advanced layout and imagery. DRM-protected books are not supported.
 
-- **Python 3.x**: Ensure you have Python 3 installed on your system.
-- **Calibre Command-Line Tools**: The script uses Calibre's ebook-convert utility.
-  - Windows: Calibre's CLI tools are usually located at `C:\Program Files\Calibre2`. Add this directory to your system's PATH environment variable.
-  - macOS: Install Calibre and create symbolic links to the CLI tools in `/usr/local/bin`.
-  - Linux: Install Calibre via your package manager or from the Calibre website.
-- **Python Libraries**:
-  - BeautifulSoup4: Install using `pip install beautifulsoup4`.
+## Local development
 
-## Installation
-
-1. Clone the Repository:
 ```bash
-git clone https://github.com/yourusername/bionic-reader-cli.git
+npm install
+npm run dev
 ```
 
-2. Install Required Python Libraries:
+Run the automated checks and production build with:
+
 ```bash
-pip install beautifulsoup4
+npm test
+npm run build
 ```
 
-3. Ensure Calibre CLI Tools Are Accessible:
-- Add Calibre's installation directory to your system's PATH.
-- Verify that `ebook-convert` is accessible by running:
-```bash
-ebook-convert --version
-```
+## Deployment
 
-## Usage
-```bash
-python apply_bioread.py <input_file>
-```
+The included GitHub Actions workflow tests, builds, and deploys `dist/` to GitHub Pages on every push to `main`. In the repository settings, select **GitHub Actions** as the Pages source.
 
-Replace `<input_file>` with the path to your .epub, .mobi, or .azw3 ebook file.
-The processed ebook will be saved in the same directory with a `_fastread` suffix in the filename.
+## Original CLI
 
-Example:
-```bash
-python apply_bioread.py "The Great Gatsby.epub"
-```
-This will create `The Great Gatsby_fastread.epub`.
-
-## Rules Applied (Bionic Reading Effect)
-
-The script enhances readability by applying the following rules to the text:
-
-1. **Bolding Part of Each Word**:
-   - For each word, the first half of the characters are bolded.
-   - If the word has an odd number of characters, the number of bolded characters is rounded up.
-
-2. **Preserving Original Formatting**:
-   - The script only modifies text nodes, leaving the rest of the ebook's formatting intact.
-   - It avoids processing text within certain HTML elements like `style`, `script`, `head`, and `title`.
-
-3. **Proper HTML Manipulation**:
-   - Uses BeautifulSoup to manipulate the HTML DOM safely.
-   - Ensures that bold tags are correctly inserted without breaking the HTML structure.
-
-## Limitations
-
-- **DRM-Protected Ebooks**: The script cannot process DRM-protected ebooks.
-- **Ebook Reader Compatibility**: Some ebook readers may not support the HTML tags or CSS styles used. The script attempts to maximize compatibility, but results may vary.
-- **Unicode Support**: If using the Unicode bold character method, ensure your ebook reader's font supports these characters.
-
-## Notes for Kindle users
-- This is tested with .epub files, then converting them with Calibre to .azw3, they work great!
-- You can select any font in your Kindle device, it will work. No extra settings needed on Calibre.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+The earlier Calibre-based Python script remains available as `apply_bioread.py` for local command-line use.
 
 ## License
 
-This project is licensed under the MIT License.
+MIT

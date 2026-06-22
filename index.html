@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f4f0e8" />
+    <meta name="description" content="Convert EPUB and MOBI ebooks into bionic-reading editions, privately in your browser." />
+    <title>Bionic read converter</title>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="Bionic read converter home">
+          <span class="brand-mark" aria-hidden="true"><b>Bi</b></span>
+          <span>Bionic read converter</span>
+        </a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode">
+          <svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+          <svg class="moon-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7Z"/></svg>
+        </button>
+      </header>
+
+      <section class="hero" aria-labelledby="page-title">
+        <p class="eyebrow">Read with momentum</p>
+        <h1 id="page-title"><span class="bionic"><b>Bi</b>onic</span> read converter</h1>
+        <p class="lede">Give your ebook a visual reading rhythm. The first part of each word is emphasized—entirely on your device.</p>
+      </section>
+
+      <section class="converter-card" aria-labelledby="converter-title">
+        <div class="card-heading">
+          <div>
+            <p class="step-label">01 · Choose your book</p>
+            <h2 id="converter-title">Drop in an ebook</h2>
+          </div>
+          <span class="privacy-pill"><span class="privacy-dot"></span>Private &amp; local</span>
+        </div>
+
+        <button class="drop-zone" id="drop-zone" type="button" aria-describedby="drop-hint">
+          <input id="file-input" type="file" accept=".epub,.mobi,application/epub+zip,application/x-mobipocket-ebook" hidden />
+          <span class="upload-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
+          </span>
+          <strong>Drag &amp; drop your EPUB or MOBI</strong>
+          <span id="drop-hint">or <span class="browse-copy">browse your files</span> · up to 200 MB</span>
+        </button>
+
+        <div class="selected-file" id="selected-file" hidden>
+          <span class="file-icon" aria-hidden="true">EP</span>
+          <span class="file-copy"><strong id="file-name"></strong><small id="file-meta"></small></span>
+          <button class="remove-file" id="remove-file" type="button" aria-label="Remove selected file">×</button>
+        </div>
+
+        <div class="options-row">
+          <label class="format-field" for="output-format">
+            <span>Output format</span>
+            <span class="select-wrap">
+              <select id="output-format">
+                <option value="keep">Keep original format</option>
+                <option value="epub">Convert to EPUB</option>
+                <option value="mobi">Convert to MOBI</option>
+              </select>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg>
+            </span>
+          </label>
+          <div class="format-note" id="format-note">EPUB preserves the original layout. MOBI export creates a broadly compatible, text-focused edition.</div>
+        </div>
+
+        <button class="convert-button" id="convert-button" type="button" disabled>
+          <span>Convert to bionic read</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
+        </button>
+
+        <div class="progress-panel" id="progress-panel" role="status" aria-live="polite" hidden>
+          <div class="progress-copy"><strong id="progress-label">Preparing your book…</strong><span id="progress-value">0%</span></div>
+          <div class="progress-track"><span id="progress-bar"></span></div>
+          <p id="progress-detail">Your file is staying right here in this browser.</p>
+        </div>
+
+        <div class="result-panel" id="result-panel" role="status" aria-live="polite" hidden>
+          <span class="result-check" aria-hidden="true">✓</span>
+          <div><strong>Your bionic edition is ready</strong><p id="result-summary"></p></div>
+          <button id="download-again" type="button">Download again</button>
+        </div>
+
+        <div class="error-panel" id="error-panel" role="alert" hidden>
+          <strong>That book could not be converted.</strong>
+          <p id="error-message"></p>
+        </div>
+      </section>
+
+      <section class="how-it-works" aria-labelledby="how-title">
+        <div class="section-intro">
+          <p class="step-label">A gentler reading cue</p>
+          <h2 id="how-title"><span class="bionic"><b>Ho</b>w</span> it works</h2>
+        </div>
+        <div class="feature-grid">
+          <article><span>01</span><h3>Choose</h3><p>Drop an EPUB or MOBI file from your device.</p></article>
+          <article><span>02</span><h3>Transform</h3><p>We emphasize the opening half of every word.</p></article>
+          <article><span>03</span><h3>Download</h3><p>Save a new edition. Your original is untouched.</p></article>
+        </div>
+      </section>
+
+      <aside class="trust-note">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.9 8.7 7 10 4.1-1.3 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+        <div><strong>Your book never leaves your device.</strong><p>Conversion happens in your browser. Nothing is uploaded, stored, or tracked.</p></div>
+      </aside>
+    </main>
+
+    <footer>created by <a href="https://www.threads.com/@jasshans" target="_blank" rel="noreferrer">@jasshans</a></footer>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
