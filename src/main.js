@@ -1,5 +1,6 @@
 import './style.css'
 import { convertBook } from './converter.js'
+import { DEFAULT_FONT, FONT_OPTIONS } from './fonts.js'
 
 const $ = (selector) => document.querySelector(selector)
 const dropZone = $('#drop-zone')
@@ -12,6 +13,82 @@ const resultPanel = $('#result-panel')
 const errorPanel = $('#error-panel')
 let currentFile = null
 let lastResult = null
+let selectedFont = DEFAULT_FONT
+
+const fontTrigger = $('#font-trigger')
+const fontMenu = $('#font-menu')
+
+function applyPreviewStyle(element, font) {
+  element.style.fontFamily = font.cssFamily
+  element.style.fontWeight = font.fontWeight || 400
+  element.style.fontStretch = font.fontStretch || 'normal'
+}
+
+function renderFontMenu() {
+  fontMenu.replaceChildren()
+  for (const group of ['Kindle fonts', 'Common fonts']) {
+    const label = document.createElement('p')
+    label.className = 'font-group-label'
+    label.textContent = group
+    fontMenu.append(label)
+    for (const font of FONT_OPTIONS.filter((option) => option.group === group)) {
+      const option = document.createElement('button')
+      option.type = 'button'
+      option.className = 'font-option'
+      option.dataset.fontId = font.id
+      option.setAttribute('role', 'option')
+      option.setAttribute('aria-selected', String(font.id === selectedFont.id))
+      option.innerHTML = `<span class="font-option-name"></span><span class="font-option-preview"><b>Fo</b>cus <b>re</b>ading</span><span class="font-option-check" aria-hidden="true">✓</span>`
+      option.querySelector('.font-option-name').textContent = font.label
+      applyPreviewStyle(option.querySelector('.font-option-preview'), font)
+      option.addEventListener('click', () => selectFont(font))
+      fontMenu.append(option)
+    }
+  }
+}
+
+function setFontMenuOpen(open, focusSelected = false) {
+  fontMenu.hidden = !open
+  fontTrigger.setAttribute('aria-expanded', String(open))
+  if (open && focusSelected) fontMenu.querySelector('[aria-selected="true"]')?.focus()
+}
+
+function selectFont(font) {
+  selectedFont = font
+  $('#selected-font-name').textContent = font.label
+  applyPreviewStyle($('#selected-font-preview'), font)
+  fontMenu.querySelectorAll('.font-option').forEach((option) => {
+    option.setAttribute('aria-selected', String(option.dataset.fontId === font.id))
+  })
+  setFontMenuOpen(false)
+  fontTrigger.focus()
+}
+
+renderFontMenu()
+applyPreviewStyle($('#selected-font-preview'), selectedFont)
+
+fontTrigger.addEventListener('click', () => setFontMenuOpen(fontMenu.hidden))
+fontTrigger.addEventListener('keydown', (event) => {
+  if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    setFontMenuOpen(true, true)
+  }
+})
+fontMenu.addEventListener('keydown', (event) => {
+  const options = Array.from(fontMenu.querySelectorAll('.font-option'))
+  const index = options.indexOf(document.activeElement)
+  if (event.key === 'Escape') {
+    setFontMenuOpen(false)
+    fontTrigger.focus()
+  } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    const direction = event.key === 'ArrowDown' ? 1 : -1
+    options[(index + direction + options.length) % options.length]?.focus()
+  }
+})
+document.addEventListener('click', (event) => {
+  if (!$('#font-picker').contains(event.target)) setFontMenuOpen(false)
+})
 
 function formatBytes(bytes) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
@@ -58,7 +135,7 @@ function updateProgress(percent, detail) {
   const value = Math.max(0, Math.min(100, percent))
   $('#progress-value').textContent = `${value}%`
   $('#progress-bar').style.width = `${value}%`
-  $('#progress-label').textContent = value >= 100 ? 'Conversion complete' : 'Creating your bionic edition…'
+  $('#progress-label').textContent = value >= 100 ? 'Conversion complete' : 'Creating your focus edition…'
   $('#progress-detail').textContent = detail
 }
 
@@ -88,9 +165,9 @@ convertButton.addEventListener('click', async () => {
   progressPanel.hidden = false
   updateProgress(0, 'Your file is staying right here in this browser.')
   try {
-    lastResult = await convertBook(currentFile, outputFormat.value, updateProgress)
+    lastResult = await convertBook(currentFile, outputFormat.value, selectedFont.id, updateProgress)
     lastResult.download()
-    $('#result-summary').textContent = `${lastResult.chapters} chapter${lastResult.chapters === 1 ? '' : 's'} · ${lastResult.words.toLocaleString()} words enhanced · ${lastResult.format.toUpperCase()}`
+    $('#result-summary').textContent = `${lastResult.chapters} chapter${lastResult.chapters === 1 ? '' : 's'} · ${lastResult.words.toLocaleString()} words enhanced · ${selectedFont.label} · ${lastResult.format.toUpperCase()}`
     progressPanel.hidden = true
     resultPanel.hidden = false
   } catch (error) {
@@ -104,7 +181,7 @@ convertButton.addEventListener('click', async () => {
 $('#download-again').addEventListener('click', () => lastResult?.download())
 
 const themeToggle = $('#theme-toggle')
-const storedTheme = localStorage.getItem('bionic-theme')
+const storedTheme = localStorage.getItem('focus-read-theme')
 if (storedTheme === 'dark' || (!storedTheme && matchMedia('(prefers-color-scheme: dark)').matches)) {
   document.documentElement.dataset.theme = 'dark'
 }
@@ -116,6 +193,6 @@ syncThemeButton()
 themeToggle.addEventListener('click', () => {
   const dark = document.documentElement.dataset.theme !== 'dark'
   document.documentElement.dataset.theme = dark ? 'dark' : 'light'
-  localStorage.setItem('bionic-theme', dark ? 'dark' : 'light')
+  localStorage.setItem('focus-read-theme', dark ? 'dark' : 'light')
   syncThemeButton()
 })

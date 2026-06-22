@@ -1,5 +1,6 @@
 import JSZip from 'jszip'
 import { initMobiFile } from '@lingo-reader/mobi-parser'
+import { focusFontCss, getFont } from './fonts.js'
 
 const HTML_EXTENSIONS = /\.(x?html?|xht)$/i
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'TITLE', 'HEAD', 'PRE', 'CODE', 'SVG', 'MATH', 'STRONG', 'B'])
@@ -14,29 +15,31 @@ function splitWord(word) {
 function shouldSkipNode(node) {
   let parent = node.parentElement
   while (parent) {
-    if (SKIP_TAGS.has(parent.tagName) || parent.dataset?.bionic === 'true') return true
+    if (SKIP_TAGS.has(parent.tagName) || parent.dataset?.focus === 'true') return true
     parent = parent.parentElement
   }
   return false
 }
 
-export function applyBionicReading(markup, forceHtml = false) {
+export function applyFocusReading(markup, fontId = 'bookerly', forceHtml = false) {
+  const font = getFont(fontId)
   const isXml = !forceHtml && /^\s*<\?xml|xmlns=["']http:\/\/www\.w3\.org\/1999\/xhtml/i.test(markup)
   const mime = isXml ? 'application/xhtml+xml' : 'text/html'
   const document = new DOMParser().parseFromString(markup, mime)
   if (isXml && document.getElementsByTagName('parsererror').length) {
-    return applyBionicReading(markup.replace(/^\s*<\?xml[^>]*\?>/i, ''), true)
+    return applyFocusReading(markup.replace(/^\s*<\?xml[^>]*\?>/i, ''), fontId, true)
   }
 
   const root = document.body || document.documentElement
+  const existingFocusCount = document.querySelectorAll('[data-focus="true"]').length
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const nodes = []
-  while (walker.nextNode()) {
+  while (!existingFocusCount && walker.nextNode()) {
     const node = walker.currentNode
     if (node.nodeValue?.trim() && !shouldSkipNode(node)) nodes.push(node)
   }
 
-  let wordCount = 0
+  let wordCount = existingFocusCount
   const segmenter = typeof Intl.Segmenter === 'function'
     ? new Intl.Segmenter(undefined, { granularity: 'word' })
     : null
@@ -54,8 +57,9 @@ export function applyBionicReading(markup, forceHtml = false) {
       const word = part.segment
       if (start > cursor) fragment.append(text.slice(cursor, start))
       const [focus, rest] = splitWord(word)
-      const strong = document.createElement('strong')
-      strong.setAttribute('data-bionic', 'true')
+      const namespace = isXml ? (node.parentElement?.namespaceURI || document.documentElement.namespaceURI) : null
+      const strong = namespace ? document.createElementNS(namespace, 'strong') : document.createElement('strong')
+      strong.setAttribute('data-focus', 'true')
       strong.textContent = focus
       fragment.append(strong, rest)
       cursor = start + word.length
@@ -63,6 +67,17 @@ export function applyBionicReading(markup, forceHtml = false) {
     }
     if (cursor < text.length) fragment.append(text.slice(cursor))
     if (segments.length) node.replaceWith(fragment)
+  }
+
+  const head = document.head || document.getElementsByTagName('head')[0]
+  if (head) {
+    const previousStyle = document.getElementById('focus-read-style')
+    previousStyle?.remove()
+    const namespace = isXml ? (head.namespaceURI || document.documentElement.namespaceURI) : null
+    const style = namespace ? document.createElementNS(namespace, 'style') : document.createElement('style')
+    style.setAttribute('id', 'focus-read-style')
+    style.textContent = `body{${focusFontCss(font)}}strong[data-focus="true"]{font-weight:800}`
+    head.append(style)
   }
 
   const output = isXml
@@ -76,7 +91,7 @@ function cleanFilename(filename) {
 }
 
 function outputName(inputName, extension) {
-  return `${cleanFilename(inputName)}-bionic.${extension}`
+  return `${cleanFilename(inputName)}-focus.${extension}`
 }
 
 function escapeXml(value = '') {
@@ -94,7 +109,7 @@ function downloadBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
-async function processEpub(file, onProgress) {
+async function processEpub(file, fontId, onProgress) {
   onProgress(4, 'Opening the EPUB package…')
   const zip = await JSZip.loadAsync(file)
   const contentFiles = Object.values(zip.files).filter((entry) => !entry.dir && HTML_EXTENSIONS.test(entry.name))
@@ -105,7 +120,7 @@ async function processEpub(file, onProgress) {
     const entry = contentFiles[index]
     onProgress(12 + Math.round((index / contentFiles.length) * 58), `Adding reading cues to chapter ${index + 1} of ${contentFiles.length}…`)
     const original = await entry.async('string')
-    const result = applyBionicReading(original)
+    const result = applyFocusReading(original, fontId)
     words += result.wordCount
     zip.file(entry.name, result.markup)
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -120,14 +135,25 @@ async function processEpub(file, onProgress) {
   return { blob, words, chapters: contentFiles.length }
 }
 
-function chapterDocument(content, title) {
+function chapterDocument(content, title, fontId) {
   const source = /<html[\s>]/i.test(content)
     ? content
     : `<!doctype html><html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="utf-8"/><title>${escapeXml(title)}</title><link rel="stylesheet" href="style.css"/></head><body>${content}</body></html>`
-  return applyBionicReading(source)
+  return applyFocusReading(source, fontId)
 }
 
-async function unpackMobi(file, onProgress) {
+function sanitizeMobiMarkup(markup) {
+  return markup
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<(?:video|audio)\b[^>]*>[\s\S]*?<\/(?:video|audio)>/gi, '')
+    .replace(/<img\b[^>]*>/gi, (tag) => {
+      const alt = tag.match(/\balt=["']([^"']*)["']/i)?.[1]?.trim()
+      return alt ? `<span class="focus-image-note">[Image: ${escapeXml(alt)}]</span>` : ''
+    })
+    .replace(/\s(?:recindex|mediarecindex|filepos)=["']?[^\s>"']+["']?/gi, '')
+}
+
+async function unpackMobi(file, fontId, onProgress) {
   onProgress(7, 'Reading the MOBI structure…')
   const mobi = await initMobiFile(file)
   try {
@@ -139,8 +165,8 @@ async function unpackMobi(file, onProgress) {
     for (let index = 0; index < spine.length; index += 1) {
       onProgress(15 + Math.round((index / spine.length) * 52), `Adding reading cues to chapter ${index + 1} of ${spine.length}…`)
       const item = spine[index]
-      const loaded = mobi.loadChapter(item.id)
-      const result = chapterDocument(loaded?.html || item.text || '', `Chapter ${index + 1}`)
+      const source = sanitizeMobiMarkup(item.text || '')
+      const result = chapterDocument(source, `Chapter ${index + 1}`, fontId)
       chapters.push(result.markup)
       words += result.wordCount
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -151,12 +177,13 @@ async function unpackMobi(file, onProgress) {
   }
 }
 
-async function chaptersToEpub(book, onProgress) {
+async function chaptersToEpub(book, fontId, onProgress) {
+  const font = getFont(fontId)
   const zip = new JSZip()
   zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
   zip.folder('META-INF').file('container.xml', `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`)
   const oebps = zip.folder('OEBPS')
-  oebps.file('style.css', 'strong[data-bionic="true"]{font-weight:700} body{line-height:1.55} img{max-width:100%;height:auto}')
+  oebps.file('style.css', `strong[data-focus="true"]{font-weight:800} body{${focusFontCss(font)}line-height:1.55} img{max-width:100%;height:auto}`)
 
   const manifest = []
   const spine = []
@@ -174,7 +201,7 @@ async function chaptersToEpub(book, onProgress) {
 
   const meta = book.metadata
   const identifier = escapeXml(meta.identifier || crypto.randomUUID())
-  oebps.file('content.opf', `<?xml version="1.0" encoding="utf-8"?><package version="3.0" unique-identifier="book-id" xmlns="http://www.idpf.org/2007/opf"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">${identifier}</dc:identifier><dc:title>${escapeXml(meta.title || 'Bionic edition')}</dc:title><dc:creator>${escapeXml(meta.author?.join(', ') || '')}</dc:creator><dc:language>${escapeXml(meta.language || 'en')}</dc:language><meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')}</meta></metadata><manifest>${manifest.join('')}</manifest><spine>${spine.join('')}</spine></package>`)
+  oebps.file('content.opf', `<?xml version="1.0" encoding="utf-8"?><package version="3.0" unique-identifier="book-id" xmlns="http://www.idpf.org/2007/opf"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">${identifier}</dc:identifier><dc:title>${escapeXml(meta.title || 'Focus edition')}</dc:title><dc:creator>${escapeXml(meta.author?.join(', ') || '')}</dc:creator><dc:language>${escapeXml(meta.language || 'en')}</dc:language><meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')}</meta></metadata><manifest>${manifest.join('')}</manifest><spine>${spine.join('')}</spine></package>`)
 
   onProgress(74, 'Building the EPUB package…')
   return zip.generateAsync(
@@ -189,13 +216,14 @@ function writeAscii(bytes, offset, text, max = text.length) {
   for (let index = 0; index < Math.min(text.length, max); index += 1) bytes[offset + index] = text.charCodeAt(index)
 }
 
-export function createMobi(chapters, metadata = {}) {
-  const title = metadata.title || 'Bionic edition'
+export function createMobi(chapters, metadata = {}, fontId = 'bookerly') {
+  const font = getFont(fontId)
+  const title = metadata.title || 'Focus edition'
   const body = chapters.map((chapter) => {
     const bodyMatch = chapter.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
     return bodyMatch?.[1] || chapter
   }).join('<mbp:pagebreak/>')
-  const html = `<html><head><meta charset="utf-8"><title>${escapeXml(title)}</title></head><body>${body}</body></html>`
+  const html = `<html><head><meta charset="utf-8"><title>${escapeXml(title)}</title><style>body{${focusFontCss(font)}}strong[data-focus="true"]{font-weight:800}</style></head><body><font face="${escapeXml(font.mobiFace)}">${body}</font></body></html>`
   const text = encoder.encode(html)
   const textRecords = []
   for (let start = 0; start < text.length;) {
@@ -206,7 +234,20 @@ export function createMobi(chapters, metadata = {}) {
   }
 
   const titleBytes = encoder.encode(title)
-  const record0 = new Uint8Array(16 + 232 + titleBytes.length)
+  const exthPayloadLength = 8 + titleBytes.length
+  const exthUnpaddedLength = 12 + exthPayloadLength
+  const exthLength = exthUnpaddedLength + ((4 - (exthUnpaddedLength % 4)) % 4)
+  const exth = new Uint8Array(exthLength)
+  const exthView = new DataView(exth.buffer)
+  writeAscii(exth, 0, 'EXTH')
+  writeUint32(exthView, 4, exthLength)
+  writeUint32(exthView, 8, 1)
+  writeUint32(exthView, 12, 503)
+  writeUint32(exthView, 16, exthPayloadLength)
+  exth.set(titleBytes, 20)
+
+  const titleOffset = 16 + 232 + exthLength
+  const record0 = new Uint8Array(titleOffset + titleBytes.length)
   const r0 = new DataView(record0.buffer)
   writeUint16(r0, 0, 1)
   writeUint32(r0, 4, text.length)
@@ -220,13 +261,15 @@ export function createMobi(chapters, metadata = {}) {
   writeUint32(r0, 36, 6)
   for (let offset = 40; offset <= 76; offset += 4) writeUint32(r0, offset, 0xffffffff)
   writeUint32(r0, 80, textRecords.length + 1)
-  writeUint32(r0, 84, 248)
+  writeUint32(r0, 84, titleOffset)
   writeUint32(r0, 88, titleBytes.length)
   writeUint32(r0, 92, 9)
   writeUint32(r0, 104, 6)
   writeUint32(r0, 108, textRecords.length + 1)
+  writeUint32(r0, 128, 0x40)
   for (let offset = 140; offset <= 152; offset += 4) writeUint32(r0, offset, 0xffffffff)
-  record0.set(titleBytes, 248)
+  record0.set(exth, 248)
+  record0.set(titleBytes, titleOffset)
 
   const eof = new Uint8Array([0xe9, 0x8e, 0x0d, 0x0a])
   const records = [record0, ...textRecords, eof]
@@ -252,7 +295,7 @@ export function createMobi(chapters, metadata = {}) {
   return new Blob([output], { type: 'application/x-mobipocket-ebook' })
 }
 
-export async function convertBook(file, requestedFormat, onProgress) {
+export async function convertBook(file, requestedFormat, fontId, onProgress) {
   const inputFormat = file.name.toLowerCase().endsWith('.mobi') ? 'mobi' : 'epub'
   const outputFormat = requestedFormat === 'keep' ? inputFormat : requestedFormat
   let blob
@@ -260,12 +303,12 @@ export async function convertBook(file, requestedFormat, onProgress) {
   let chapters
 
   if (inputFormat === 'epub' && outputFormat === 'epub') {
-    const result = await processEpub(file, onProgress)
+    const result = await processEpub(file, fontId, onProgress)
     ;({ blob, words, chapters } = result)
   } else {
     let book
     if (inputFormat === 'mobi') {
-      book = await unpackMobi(file, onProgress)
+      book = await unpackMobi(file, fontId, onProgress)
     } else {
       onProgress(6, 'Reading the EPUB structure…')
       const zip = await JSZip.loadAsync(file)
@@ -274,7 +317,7 @@ export async function convertBook(file, requestedFormat, onProgress) {
       words = 0
       for (let index = 0; index < entries.length; index += 1) {
         onProgress(15 + Math.round((index / entries.length) * 52), `Adding reading cues to chapter ${index + 1} of ${entries.length}…`)
-        const result = applyBionicReading(await entries[index].async('string'))
+        const result = applyFocusReading(await entries[index].async('string'), fontId)
         transformed.push(result.markup)
         words += result.wordCount
       }
@@ -282,15 +325,15 @@ export async function convertBook(file, requestedFormat, onProgress) {
     }
     words = book.words
     chapters = book.chapters.length
-    if (outputFormat === 'epub') blob = await chaptersToEpub(book, onProgress)
+    if (outputFormat === 'epub') blob = await chaptersToEpub(book, fontId, onProgress)
     else {
       onProgress(78, 'Building a compatible MOBI edition…')
-      blob = createMobi(book.chapters, book.metadata)
+      blob = createMobi(book.chapters, book.metadata, fontId)
       onProgress(98, 'Finishing your MOBI edition…')
     }
   }
 
-  onProgress(100, 'Your bionic edition is ready.')
+  onProgress(100, 'Your focus edition is ready.')
   const name = outputName(file.name, outputFormat)
   return { blob, name, words, chapters, format: outputFormat, download: () => downloadBlob(blob, name) }
 }

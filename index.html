@@ -4,15 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f4f0e8" />
-    <meta name="description" content="Convert EPUB and MOBI ebooks into bionic-reading editions, privately in your browser." />
-    <title>Bionic read converter</title>
+    <meta name="description" content="Convert EPUB and MOBI ebooks into focus-reading editions, privately in your browser." />
+    <title>Focus Read Converter</title>
   </head>
   <body>
     <main class="shell">
       <header class="topbar">
-        <a class="brand" href="./" aria-label="Bionic read converter home">
-          <span class="brand-mark" aria-hidden="true"><b>Bi</b></span>
-          <span>Bionic read converter</span>
+        <a class="brand" href="./" aria-label="Focus Read Converter home">
+          <span class="brand-mark" aria-hidden="true"><b>Fo</b></span>
+          <span>Focus Read Converter</span>
         </a>
         <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode">
           <svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
@@ -22,7 +22,7 @@
 
       <section class="hero" aria-labelledby="page-title">
         <p class="eyebrow">Read with momentum</p>
-        <h1 id="page-title"><span class="bionic"><b>Bi</b>onic</span> read converter</h1>
+        <h1 id="page-title"><span class="focus-word"><b>Fo</b>cus</span> Read Converter</h1>
         <p class="lede">Give your ebook a visual reading rhythm. The first part of each word is emphasized—entirely on your device.</p>
       </section>
 
@@ -62,11 +62,21 @@
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg>
             </span>
           </label>
-          <div class="format-note" id="format-note">EPUB preserves the original layout. MOBI export creates a broadly compatible, text-focused edition.</div>
+          <div class="font-field">
+            <span class="field-label" id="font-label">Reading font</span>
+            <div class="font-picker" id="font-picker">
+              <button class="font-trigger" id="font-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="font-label selected-font-name">
+                <span class="font-trigger-copy"><strong id="selected-font-name">Bookerly</strong><span class="font-preview" id="selected-font-preview"><b>Fo</b>cus <b>re</b>ading</span></span>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg>
+              </button>
+              <div class="font-menu" id="font-menu" role="listbox" aria-labelledby="font-label" hidden></div>
+            </div>
+          </div>
+          <div class="format-note" id="format-note">EPUB keeps the original package. MOBI output is text-focused. Kindle faces use fonts already installed on the reader; no proprietary font files are embedded.</div>
         </div>
 
         <button class="convert-button" id="convert-button" type="button" disabled>
-          <span>Convert to bionic read</span>
+          <span>Convert to focus read</span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
         </button>
 
@@ -78,7 +88,7 @@
 
         <div class="result-panel" id="result-panel" role="status" aria-live="polite" hidden>
           <span class="result-check" aria-hidden="true">✓</span>
-          <div><strong>Your bionic edition is ready</strong><p id="result-summary"></p></div>
+          <div><strong>Your focus edition is ready</strong><p id="result-summary"></p></div>
           <button id="download-again" type="button">Download again</button>
         </div>
 
@@ -91,7 +101,7 @@
       <section class="how-it-works" aria-labelledby="how-title">
         <div class="section-intro">
           <p class="step-label">A gentler reading cue</p>
-          <h2 id="how-title"><span class="bionic"><b>Ho</b>w</span> it works</h2>
+          <h2 id="how-title"><span class="focus-word"><b>Ho</b>w</span> it works</h2>
         </div>
         <div class="feature-grid">
           <article><span>01</span><h3>Choose</h3><p>Drop an EPUB or MOBI file from your device.</p></article>
