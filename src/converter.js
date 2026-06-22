@@ -31,6 +31,10 @@ export function applyFocusReading(markup, fontId = 'bookerly', forceHtml = false
   }
 
   const root = document.body || document.documentElement
+  document.querySelectorAll('[data-bionic="true"]').forEach((mark) => {
+    mark.removeAttribute('data-bionic')
+    mark.setAttribute('data-focus', 'true')
+  })
   const existingFocusCount = document.querySelectorAll('[data-focus="true"]').length
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const nodes = []
@@ -153,9 +157,68 @@ function sanitizeMobiMarkup(markup) {
     .replace(/\s(?:recindex|mediarecindex|filepos)=["']?[^\s>"']+["']?/gi, '')
 }
 
+function namedBytes(bytes, name) {
+  Object.defineProperty(bytes, 'name', { value: name || 'book.mobi', configurable: true })
+  return bytes
+}
+
+async function prepareMobiInput(file) {
+  const bytes = file instanceof Uint8Array
+    ? new Uint8Array(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength))
+    : new Uint8Array(await file.arrayBuffer())
+  const name = file.name || 'book.mobi'
+  if (bytes.length < 256) throw new Error('This MOBI file is too small to contain a readable book.')
+
+  const sourceView = new DataView(bytes.buffer)
+  const recordCount = sourceView.getUint16(76, false)
+  if (!recordCount) throw new Error('This MOBI file has no readable content records.')
+  const record0Offset = sourceView.getUint32(78, false)
+  const record0End = recordCount > 1 ? sourceView.getUint32(86, false) : bytes.length
+  if (record0Offset + 132 > record0End || record0End > bytes.length) {
+    throw new Error('The MOBI record table is damaged or incomplete.')
+  }
+
+  const magic = new TextDecoder('ascii').decode(bytes.slice(record0Offset + 16, record0Offset + 20))
+  if (magic !== 'MOBI') throw new Error('This file does not contain a supported MOBI book header.')
+  const exthFlags = sourceView.getUint32(record0Offset + 128, false)
+  if (exthFlags & 0x40) return { input: namedBytes(bytes, name), repaired: false }
+
+  const mobiHeaderLength = sourceView.getUint32(record0Offset + 20, false)
+  const insertOffset = record0Offset + 16 + mobiHeaderLength
+  if (insertOffset > record0End) throw new Error('The MOBI metadata header is incomplete.')
+
+  const exth = new Uint8Array(12)
+  const exthView = new DataView(exth.buffer)
+  writeAscii(exth, 0, 'EXTH')
+  writeUint32(exthView, 4, exth.length)
+  writeUint32(exthView, 8, 0)
+
+  const repaired = new Uint8Array(bytes.length + exth.length)
+  repaired.set(bytes.slice(0, insertOffset), 0)
+  repaired.set(exth, insertOffset)
+  repaired.set(bytes.slice(insertOffset), insertOffset + exth.length)
+  const repairedView = new DataView(repaired.buffer)
+
+  for (let index = 0; index < recordCount; index += 1) {
+    const tableOffset = 78 + index * 8
+    const oldOffset = sourceView.getUint32(tableOffset, false)
+    writeUint32(repairedView, tableOffset, oldOffset >= insertOffset ? oldOffset + exth.length : oldOffset)
+  }
+
+  const titleOffsetPosition = record0Offset + 84
+  const titleOffset = sourceView.getUint32(titleOffsetPosition, false)
+  if (titleOffset >= 16 + mobiHeaderLength && titleOffset < 0xffffffff) {
+    writeUint32(repairedView, titleOffsetPosition, titleOffset + exth.length)
+  }
+  writeUint32(repairedView, record0Offset + 128, exthFlags | 0x40)
+  return { input: namedBytes(repaired, name), repaired: true }
+}
+
 async function unpackMobi(file, fontId, onProgress) {
   onProgress(7, 'Reading the MOBI structure…')
-  const mobi = await initMobiFile(file)
+  const prepared = await prepareMobiInput(file)
+  if (prepared.repaired) onProgress(10, 'Repairing legacy MOBI metadata…')
+  const mobi = await initMobiFile(prepared.input)
   try {
     const spine = mobi.getSpine()
     if (!spine?.length) throw new Error('No readable chapters were found in this MOBI file.')
