@@ -108,7 +108,7 @@ function setFile(file) {
   }
   const extension = file.name.split('.').pop()?.toLowerCase()
   if (extension !== 'epub') {
-    showError('Please choose an .epub file. MOBI input is not supported.')
+    showError('Please choose an .epub file. This tool only converts EPUB to a focused EPUB.')
     return
   }
   if (file.size > 200 * 1024 * 1024) {
@@ -135,7 +135,7 @@ function updateProgress(percent, detail) {
   const value = Math.max(0, Math.min(100, percent))
   $('#progress-value').textContent = `${value}%`
   $('#progress-bar').style.width = `${value}%`
-  $('#progress-label').textContent = value >= 100 ? 'Conversion complete' : 'Creating your focus edition…'
+  $('#progress-label').textContent = value >= 100 ? 'Conversion complete' : 'Creating your focus EPUB…'
   $('#progress-detail').textContent = detail
 }
 
@@ -163,7 +163,7 @@ convertButton.addEventListener('click', async () => {
   errorPanel.hidden = true
   resultPanel.hidden = true
   progressPanel.hidden = false
-  updateProgress(0, 'Your file is staying right here in this browser.')
+    updateProgress(0, 'Your EPUB is staying right here in this browser.')
   try {
     lastResult = await convertBook(currentFile, outputFormat.value, selectedFont.id, updateProgress)
     lastResult.download()

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
-import { applyFocusReading, convertBook, createMobi } from './converter.js'
+import { applyFocusReading, convertBook } from './converter.js'
 
 function readBlob(blob) {
   return new Promise((resolve, reject) => {
@@ -58,25 +58,7 @@ describe('applyFocusReading', () => {
   })
 })
 
-describe('createMobi', () => {
-  it('creates a Palm database MOBI container', async () => {
-    const blob = createMobi(['<html><body><p><strong data-focus="true">Hel</strong>lo</p></body></html>'], { title: 'Test book' }, 'georgia')
-    const bytes = await readBlob(blob)
-    expect(new TextDecoder().decode(bytes.slice(60, 68))).toBe('BOOKMOBI')
-    expect(bytes.length).toBeGreaterThan(300)
-  })
-
-  it('converts EPUB to a focused MOBI with the chosen font', async () => {
-    const input = await makeEpub()
-    const result = await convertBook(input, 'mobi', 'georgia', () => {})
-    const output = new TextDecoder().decode(await readBlob(result.blob))
-    expect(result.format).toBe('mobi')
-    expect(result.words).toBe(3)
-    expect(result.name).toBe('source-focus.mobi')
-    expect(output).toContain('data-focus="true"')
-    expect(output).toContain('font face="Georgia"')
-  })
-
+describe('convertBook', () => {
   it('converts EPUB to a focused EPUB while preserving the package', async () => {
     const result = await convertBook(await makeEpub(), 'epub', 'bookerly', () => {})
     const outputZip = await JSZip.loadAsync(await readBlob(result.blob))
@@ -86,6 +68,10 @@ describe('createMobi', () => {
     expect(result.words).toBe(3)
     expect(chapter).toContain('data-focus="true"')
     expect(await outputZip.file('mimetype').async('string')).toBe('application/epub+zip')
+  })
+
+  it('rejects non-EPUB output requests with a clear Kindle message', async () => {
+    await expect(convertBook(await makeEpub(), 'azw3', 'bookerly', () => {})).rejects.toThrow('MOBI/AZW3 output is not supported')
   })
 
   it('rejects MOBI input with a clear message', async () => {

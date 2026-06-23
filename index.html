@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f4f0e8" />
-    <meta name="description" content="Convert an EPUB into an EPUB or MOBI focus-reading edition, privately in your browser." />
+    <meta name="description" content="Convert an EPUB into a focus-reading EPUB, privately in your browser. Send the EPUB to Kindle for Amazon conversion." />
     <title>Focus Read Converter</title>
   </head>
   <body>
@@ -22,7 +22,7 @@
       <section class="hero" aria-labelledby="page-title">
         <p class="eyebrow">Read with momentum</p>
         <h1 id="page-title"><span class="focus-word"><b>Fo</b>cus</span> Read Converter</h1>
-        <p class="lede">Convert an EPUB to EPUB focus mode or MOBI focus mode. The first part of each word is emphasized—entirely on your device.</p>
+        <p class="lede">Convert an EPUB into a focus-reading EPUB. For Kindle, send the focused EPUB to Amazon and Kindle will convert it.</p>
       </section>
 
       <section class="converter-card" aria-labelledby="converter-title">
@@ -55,7 +55,6 @@
             <span class="select-wrap">
               <select id="output-format">
                 <option value="epub">EPUB → EPUB focus mode</option>
-                <option value="mobi">EPUB → MOBI focus mode</option>
               </select>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg>
             </span>
@@ -70,11 +69,11 @@
               <div class="font-menu" id="font-menu" role="listbox" aria-labelledby="font-label" hidden></div>
             </div>
           </div>
-          <div class="format-note" id="format-note">EPUB input only. EPUB output preserves the original package; MOBI output creates a text-focused Kindle edition. Kindle faces use fonts already installed on the reader.</div>
+          <div class="format-note" id="format-note">EPUB input only. For Kindle, download the focused EPUB and use <a href="https://www.amazon.com/sendtokindle/" target="_blank" rel="noreferrer">Send to Kindle</a>. AZW3/MOBI export needs Kindle-specific tooling, so this browser version avoids unreliable files.</div>
         </div>
 
         <button class="convert-button" id="convert-button" type="button" disabled>
-          <span>Convert to focus read</span>
+          <span>Convert to focus EPUB</span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
         </button>
 
@@ -114,7 +113,7 @@
         <div class="feature-grid">
           <article><span>01</span><h3>Choose</h3><p>Drop an EPUB file from your device.</p></article>
           <article><span>02</span><h3>Transform</h3><p>We emphasize the opening half of every word.</p></article>
-          <article><span>03</span><h3>Download</h3><p>Save a focused EPUB or MOBI. Your original stays untouched.</p></article>
+          <article><span>03</span><h3>Download</h3><p>Save a focused EPUB. Send it to Kindle when you want it in your Kindle library.</p></article>
         </div>
       </section>
 

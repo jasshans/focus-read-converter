@@ -106,6 +106,7 @@ select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in s
 .font-option-check { color: var(--accent-dark); font-size: 14px; font-weight: 800; opacity: 0; }
 .font-option[aria-selected='true'] .font-option-check { opacity: 1; }
 .format-note { grid-column: 1 / -1; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.format-note a { color: var(--accent-dark); font-weight: 800; text-underline-offset: 3px; }
 .convert-button { width: 100%; min-height: 55px; display: flex; align-items: center; justify-content: center; gap: 11px; color: var(--button-fg); background: var(--button-bg); border: 0; border-radius: 12px; font-weight: 800; cursor: pointer; transition: transform .2s, background .2s, color .2s; }
 .convert-button:not(:disabled):hover { transform: translateY(-2px); }
 .convert-button:disabled { color: var(--button-disabled-fg); background: var(--button-disabled-bg); cursor: not-allowed; }

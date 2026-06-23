@@ -3,7 +3,6 @@ import { focusFontCss, getFont } from './fonts.js'
 
 const HTML_EXTENSIONS = /\.(x?html?|xht)$/i
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'TITLE', 'HEAD', 'PRE', 'CODE', 'SVG', 'MATH', 'STRONG', 'B'])
-const encoder = new TextEncoder()
 
 function splitWord(word) {
   const characters = Array.from(word)
@@ -97,10 +96,6 @@ function outputName(inputName, extension) {
   return `${cleanFilename(inputName)}-focus.${extension}`
 }
 
-function escapeXml(value = '') {
-  return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
-}
-
 function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -138,124 +133,16 @@ async function processEpub(file, fontId, onProgress) {
   return { blob, words, chapters: contentFiles.length }
 }
 
-function writeUint16(view, offset, value) { view.setUint16(offset, value, false) }
-function writeUint32(view, offset, value) { view.setUint32(offset, value >>> 0, false) }
-function writeAscii(bytes, offset, text, max = text.length) {
-  for (let index = 0; index < Math.min(text.length, max); index += 1) bytes[offset + index] = text.charCodeAt(index)
-}
-
-export function createMobi(chapters, metadata = {}, fontId = 'bookerly') {
-  const font = getFont(fontId)
-  const title = metadata.title || 'Focus edition'
-  const body = chapters.map((chapter) => {
-    const bodyMatch = chapter.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
-    return bodyMatch?.[1] || chapter
-  }).join('<mbp:pagebreak/>')
-  const html = `<html><head><meta charset="utf-8"><title>${escapeXml(title)}</title><style>body{${focusFontCss(font)}}strong[data-focus="true"]{font-weight:800}</style></head><body><font face="${escapeXml(font.mobiFace)}">${body}</font></body></html>`
-  const text = encoder.encode(html)
-  const textRecords = []
-  for (let start = 0; start < text.length;) {
-    let end = Math.min(start + 4096, text.length)
-    while (end < text.length && (text[end] & 0xc0) === 0x80) end -= 1
-    textRecords.push(text.slice(start, end))
-    start = end
-  }
-
-  const titleBytes = encoder.encode(title)
-  const exthPayloadLength = 8 + titleBytes.length
-  const exthUnpaddedLength = 12 + exthPayloadLength
-  const exthLength = exthUnpaddedLength + ((4 - (exthUnpaddedLength % 4)) % 4)
-  const exth = new Uint8Array(exthLength)
-  const exthView = new DataView(exth.buffer)
-  writeAscii(exth, 0, 'EXTH')
-  writeUint32(exthView, 4, exthLength)
-  writeUint32(exthView, 8, 1)
-  writeUint32(exthView, 12, 503)
-  writeUint32(exthView, 16, exthPayloadLength)
-  exth.set(titleBytes, 20)
-
-  const titleOffset = 16 + 232 + exthLength
-  const record0 = new Uint8Array(titleOffset + titleBytes.length)
-  const r0 = new DataView(record0.buffer)
-  writeUint16(r0, 0, 1)
-  writeUint32(r0, 4, text.length)
-  writeUint16(r0, 8, textRecords.length)
-  writeUint16(r0, 10, 4096)
-  writeAscii(record0, 16, 'MOBI')
-  writeUint32(r0, 20, 232)
-  writeUint32(r0, 24, 2)
-  writeUint32(r0, 28, 65001)
-  writeUint32(r0, 32, Math.floor(Math.random() * 0xffffffff))
-  writeUint32(r0, 36, 6)
-  for (let offset = 40; offset <= 76; offset += 4) writeUint32(r0, offset, 0xffffffff)
-  writeUint32(r0, 80, textRecords.length + 1)
-  writeUint32(r0, 84, titleOffset)
-  writeUint32(r0, 88, titleBytes.length)
-  writeUint32(r0, 92, 9)
-  writeUint32(r0, 104, 6)
-  writeUint32(r0, 108, textRecords.length + 1)
-  writeUint32(r0, 128, 0x40)
-  for (let offset = 140; offset <= 152; offset += 4) writeUint32(r0, offset, 0xffffffff)
-  record0.set(exth, 248)
-  record0.set(titleBytes, titleOffset)
-
-  const eof = new Uint8Array([0xe9, 0x8e, 0x0d, 0x0a])
-  const records = [record0, ...textRecords, eof]
-  const headerLength = 78 + records.length * 8 + 2
-  const totalLength = headerLength + records.reduce((sum, record) => sum + record.length, 0)
-  const output = new Uint8Array(totalLength)
-  const view = new DataView(output.buffer)
-  writeAscii(output, 0, title, 31)
-  const palmEpoch = Math.floor(Date.now() / 1000) + 2082844800
-  writeUint32(view, 36, palmEpoch)
-  writeUint32(view, 40, palmEpoch)
-  writeAscii(output, 60, 'BOOK')
-  writeAscii(output, 64, 'MOBI')
-  writeUint32(view, 68, records.length + 1)
-  writeUint16(view, 76, records.length)
-  let recordOffset = headerLength
-  records.forEach((record, index) => {
-    writeUint32(view, 78 + index * 8, recordOffset)
-    writeUint32(view, 82 + index * 8, index * 2)
-    output.set(record, recordOffset)
-    recordOffset += record.length
-  })
-  return new Blob([output], { type: 'application/x-mobipocket-ebook' })
-}
-
 export async function convertBook(file, requestedFormat, fontId, onProgress) {
   if (!file?.name?.toLowerCase().endsWith('.epub')) {
     throw new Error('Only EPUB input is supported. Choose an .epub file.')
   }
-  const outputFormat = requestedFormat === 'mobi' ? 'mobi' : 'epub'
-  let blob
-  let words
-  let chapters
-
-  if (outputFormat === 'epub') {
-    const result = await processEpub(file, fontId, onProgress)
-    ;({ blob, words, chapters } = result)
-  } else {
-    onProgress(6, 'Reading the EPUB structure…')
-    const zip = await JSZip.loadAsync(file)
-    const entries = Object.values(zip.files).filter((entry) => !entry.dir && HTML_EXTENSIONS.test(entry.name))
-    if (!entries.length) throw new Error('No readable HTML chapters were found. The book may be DRM-protected or damaged.')
-    const transformed = []
-    words = 0
-    for (let index = 0; index < entries.length; index += 1) {
-      onProgress(15 + Math.round((index / entries.length) * 52), `Adding reading cues to chapter ${index + 1} of ${entries.length}…`)
-      const result = applyFocusReading(await entries[index].async('string'), fontId)
-      transformed.push(result.markup)
-      words += result.wordCount
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    }
-    chapters = transformed.length
-    onProgress(78, 'Building a compatible MOBI edition…')
-    blob = createMobi(transformed, { title: cleanFilename(file.name) }, fontId)
-    onProgress(98, 'Finishing your MOBI edition…')
+  if (requestedFormat && requestedFormat !== 'epub') {
+    throw new Error('Kindle MOBI/AZW3 output is not supported in this browser tool. Choose EPUB focus mode and send the EPUB to Kindle.')
   }
 
-  onProgress(100, 'Your focus edition is ready.')
-  const name = outputName(file.name, outputFormat)
-  return { blob, name, words, chapters, format: outputFormat, download: () => downloadBlob(blob, name) }
+  const { blob, words, chapters } = await processEpub(file, fontId, onProgress)
+  onProgress(100, 'Your focus EPUB is ready.')
+  const name = outputName(file.name, 'epub')
+  return { blob, name, words, chapters, format: 'epub', download: () => downloadBlob(blob, name) }
 }
